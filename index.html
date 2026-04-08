@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; }
+        #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        
+        /* カードの外形ガイド（8.8 : 6.3） */
+        #card-outline {
+            position: relative;
+            width: 80vw; /* 画面幅の80%をカードの横幅とする */
+            height: calc(80vw * (8.8 / 6.3));
+            border: 2px dashed #555;
+            border-radius: 10px;
+        }
+
+        /* シリアルコード白帯のターゲット枠（計算に基づいた配置） */
+        #serial-target {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            /* 上から約56.2%の位置（4.95/8.8） */
+            top: 56.2%; 
+            /* 高さ約3.4%（0.3/8.8）だが、撮影しやすく少し広めに確保 */
+            height: 6%; 
+            border: 2px solid #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+
+        #btn-capture {
+            position: absolute; bottom: 30px;
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 5px solid #fff; background: red;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="video" autoplay playsinline style="position:absolute; width:100%; height:100%; object-fit:cover;"></video>
+        
+        <div id="card-outline">
+            <div id="serial-target"></div>
+        </div>
+
+        <button id="btn-capture"></button>
+    </div>
+</body>
+</html>
