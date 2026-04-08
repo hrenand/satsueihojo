@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DBFW Serial Scanner</title>
+    <title>DBFW Serial Scanner v2</title>
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
         #container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -16,21 +16,21 @@
             z-index: 2;
             width: 75vw;
             height: calc(75vw * (8.8 / 6.3));
-            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border: 2px dashed rgba(255, 255, 255, 0.4);
             border-radius: 12px;
             pointer-events: none;
         }
 
-        /* シリアルコード白帯範囲 (上から 4.95-5.25cm / 8.8cm) */
+        /* 修正されたシリアルコード範囲 (上から 4.95-5.75cm / 8.8cm) */
         #serial-target {
             position: absolute;
             left: -5%;
             width: 110%;
             top: 56.25%; /* 4.95 / 8.8 */
-            height: 3.4%;  /* 0.3 / 8.8 */
-            border: 2px solid #ff0000;
-            background: rgba(255, 0, 0, 0.2);
-            box-shadow: 0 0 10px #ff0000;
+            height: 9.09%; /* (5.75 - 4.95) / 8.8 = 約9.1% */
+            border: 2px solid #00ff00; /* 合わせやすいよう緑に変更 */
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
         }
 
         #controls {
@@ -43,24 +43,25 @@
         }
 
         #shutter {
-            width: 80px; height: 80px; border-radius: 50%;
-            border: 5px solid #fff; background: #ff0000;
+            width: 85px; height: 85px; border-radius: 50%;
+            border: 5px solid #fff; background: #00ff00;
             cursor: pointer; outline: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
 
-        #shutter:active { transform: scale(0.9); background: #cc0000; }
+        #shutter:active { transform: scale(0.9); background: #00cc00; }
 
         #status {
             position: absolute; top: 20px; z-index: 3;
-            background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 20px;
-            font-size: 14px;
+            background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px;
+            font-size: 14px; font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div id="container">
         <video id="video" autoplay playsinline></video>
-        <div id="status">カードを枠に合わせてください</div>
+        <div id="status">カード全体を点線枠に合わせてください</div>
         <div id="card-guide">
             <div id="serial-target"></div>
         </div>
@@ -74,16 +75,20 @@
         const shutter = document.getElementById('shutter');
         const status = document.getElementById('status');
 
-        // カメラ起動
         async function initCamera() {
+            const constraints = {
+                video: { 
+                    facingMode: "environment", 
+                    width: { ideal: 1920 }, 
+                    height: { ideal: 1080 },
+                    focusMode: "continuous"
+                }
+            };
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", focusMode: "continuous", width: { ideal: 1920 }, height: { ideal: 1080 } }
-                });
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
             } catch (err) {
-                status.innerText = "エラー: カメラを起動できません";
-                console.error(err);
+                status.innerText = "カメラを起動できません。HTTPS環境か確認してください。";
             }
         }
 
@@ -92,29 +97,28 @@
             const vWidth = video.videoWidth;
             const vHeight = video.videoHeight;
             
-            // カードの縦横比を考慮したクロップ計算
-            // 実際はCSSのガイド枠の位置をVideo解像度に投影する
-            canvas.width = vWidth * 0.8; // 余裕を持って横幅を確保
-            canvas.height = vHeight * 0.1; // シリアル部分のみ
+            // クロップサイズ設定 (横幅80%, 縦幅15%程度)
+            canvas.width = vWidth * 0.8;
+            canvas.height = vHeight * 0.15;
 
             const ctx = canvas.getContext('2d');
             
-            // クロップ処理 (中央付近のシリアル帯を狙い撃ち)
+            // 指定された 4.95-5.75cm の範囲を中心に切り抜き
             const sx = vWidth * 0.1;
-            const sy = vHeight * 0.55; 
+            const sy = vHeight * 0.54; // ガイドに合わせて微調整
             const sw = vWidth * 0.8;
-            const sh = vHeight * 0.08;
+            const sh = vHeight * 0.12;
 
             ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
 
-            // 画像のダウンロード (本来はここにサーバー送信処理を書く)
+            // 保存処理
             const link = document.createElement('a');
-            link.download = `serial_${Date.now()}.png`;
+            link.download = `DBFW_${Date.now()}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
             
-            status.innerText = "保存しました。PCで確認してください。";
-            setTimeout(() => { status.innerText = "カードを枠に合わせてください"; }, 2000);
+            status.innerText = "保存完了。PCへ転送してください。";
+            setTimeout(() => { status.innerText = "カード全体を点線枠に合わせてください"; }, 2000);
         });
 
         initCamera();
