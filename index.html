@@ -3,125 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DBFW Serial Scanner v2</title>
+    <title>DBFW Scanner Pro</title>
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
-        #container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
         
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         
-        /* カード全体の外枠ガイド (8.8 : 6.3) */
+        /* カード全体の外枠 (8.8 : 6.3) */
         #card-guide {
-            position: relative;
-            z-index: 2;
-            width: 75vw;
-            height: calc(75vw * (8.8 / 6.3));
+            position: relative; z-index: 2;
+            width: 80vw;
+            height: calc(80vw * (8.8 / 6.3));
             border: 2px dashed rgba(255, 255, 255, 0.4);
             border-radius: 12px;
             pointer-events: none;
         }
 
-        /* 修正されたシリアルコード範囲 (上から 4.95-5.75cm / 8.8cm) */
+        /* 修正：4.95-5.75cm の範囲を厳密に表示 */
         #serial-target {
             position: absolute;
-            left: -5%;
-            width: 110%;
+            left: 0; width: 100%;
             top: 56.25%; /* 4.95 / 8.8 */
-            height: 9.09%; /* (5.75 - 4.95) / 8.8 = 約9.1% */
-            border: 2px solid #00ff00; /* 合わせやすいよう緑に変更 */
-            background: rgba(0, 255, 0, 0.15);
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
-        }
-
-        #controls {
-            position: absolute;
-            bottom: 40px;
-            z-index: 3;
-            width: 100%;
-            display: flex;
-            justify-content: center;
+            height: 9.1%;  /* (5.75-4.95) / 8.8 */
+            border: 3px solid #00ff00;
+            background: rgba(0, 255, 0, 0.1);
+            box-sizing: border-box;
         }
 
         #shutter {
-            width: 85px; height: 85px; border-radius: 50%;
-            border: 5px solid #fff; background: #00ff00;
-            cursor: pointer; outline: none;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 3; width: 70px; height: 70px; border-radius: 50%;
+            border: 4px solid #fff; background: #ff0000;
         }
 
-        #shutter:active { transform: scale(0.9); background: #00cc00; }
-
         #status {
-            position: absolute; top: 20px; z-index: 3;
-            background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px;
-            font-size: 14px; font-weight: bold;
+            position: absolute; top: 10px; z-index: 3; width: 100%; text-align: center;
+            background: rgba(0,0,0,0.7); font-size: 12px; padding: 5px 0;
         }
     </style>
 </head>
 <body>
     <div id="container">
         <video id="video" autoplay playsinline></video>
-        <div id="status">カード全体を点線枠に合わせてください</div>
+        <div id="status">枠内にカードを合わせて撮影してください</div>
         <div id="card-guide">
-            <div id="serial-target"></div>
+            <div id="serial-target" id="target"></div>
         </div>
-        <div id="controls">
-            <button id="shutter"></button>
-        </div>
+        <button id="shutter"></button>
     </div>
 
     <script>
         const video = document.getElementById('video');
         const shutter = document.getElementById('shutter');
-        const status = document.getElementById('status');
 
-        async function initCamera() {
-            const constraints = {
-                video: { 
-                    facingMode: "environment", 
-                    width: { ideal: 1920 }, 
-                    height: { ideal: 1080 },
-                    focusMode: "continuous"
-                }
-            };
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-            } catch (err) {
-                status.innerText = "カメラを起動できません。HTTPS環境か確認してください。";
-            }
-        }
+        // カメラ起動
+        navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+        }).then(stream => { video.srcObject = stream; });
 
         shutter.addEventListener('click', () => {
             const canvas = document.createElement('canvas');
-            const vWidth = video.videoWidth;
-            const vHeight = video.videoHeight;
-            
-            // クロップサイズ設定 (横幅80%, 縦幅15%程度)
-            canvas.width = vWidth * 0.8;
-            canvas.height = vHeight * 0.15;
-
             const ctx = canvas.getContext('2d');
+
+            // ビデオの実際の解像度
+            const vW = video.videoWidth;
+            const vH = video.videoHeight;
+
+            // 画面上のガイド枠の比率を、実際のビデオ解像度に変換
+            // object-fit: cover を考慮した計算
+            const videoAspect = vW / vH;
+            const screenAspect = window.innerWidth / window.innerHeight;
             
-            // 指定された 4.95-5.75cm の範囲を中心に切り抜き
-            const sx = vWidth * 0.1;
-            const sy = vHeight * 0.54; // ガイドに合わせて微調整
-            const sw = vWidth * 0.8;
-            const sh = vHeight * 0.12;
+            let drawW, drawH, offsetX = 0, offsetY = 0;
+            if (videoAspect > screenAspect) {
+                drawH = vH;
+                drawW = vH * screenAspect;
+                offsetX = (vW - drawW) / 2;
+            } else {
+                drawW = vW;
+                drawH = vW / screenAspect;
+                offsetY = (vH - drawH) / 2;
+            }
 
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            // カードガイドの位置（画面比率）
+            const guideWidthRatio = 0.8; // 80vw
+            const guideHeightRatio = guideWidthRatio * (8.8 / 6.3) * (window.innerWidth / window.innerHeight);
 
-            // 保存処理
+            // シリアルターゲットの位置（カード内の比率）
+            const targetTopRatio = 0.5625;
+            const targetHeightRatio = 0.091;
+
+            // クロップ範囲の計算 (シリアル枠の周辺だけを切り抜く)
+            const cropX = offsetX + (drawW * 0.1); // 横10%あける
+            const cropY = offsetY + (drawH * (0.5 - (guideHeightRatio / 2)) + (drawH * guideHeightRatio * targetTopRatio));
+            const cropW = drawW * 0.8;
+            const cropH = drawH * guideHeightRatio * targetHeightRatio;
+
+            // Canvasサイズをクロップ範囲に合わせる
+            canvas.width = cropW;
+            canvas.height = cropH;
+
+            // 指定範囲のみをコピー
+            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+            // 保存
             const link = document.createElement('a');
-            link.download = `DBFW_${Date.now()}.png`;
+            link.download = `crop_${Date.now()}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
-            
-            status.innerText = "保存完了。PCへ転送してください。";
-            setTimeout(() => { status.innerText = "カード全体を点線枠に合わせてください"; }, 2000);
         });
-
-        initCamera();
     </script>
 </body>
 </html>
